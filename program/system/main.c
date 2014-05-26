@@ -2,6 +2,8 @@
 
 #define PRINT_DEBUG(var1) serial.printf("DEBUG PRINT"#var1"\r\n")
 
+xTimerHandle xTimers[1];
+
 xTaskHandle FlightControl_Handle = NULL;
 xTaskHandle correction_task_handle = NULL;
 xTaskHandle watch_task_handle = NULL;
@@ -46,8 +48,8 @@ void system_init(void)
 	Sensor_Config();
 
 	//SD Config
-	if ((SD_status = SD_Init()) != SD_OK)
-		system.status = SYSTEM_ERROR_SD;
+	if ((sd_status = SD_Init()) != SD_OK)
+		system_status = SYSTEM_ERROR_SD;
 
 	PID_Init(&PID_Pitch, 4.0, 0.0, 1.5);
 	PID_Init(&PID_Roll, 4.0, 0.0, 1.5);
@@ -68,8 +70,8 @@ void system_init(void)
 	SetLED(LED_B, ENABLE);
 
 	//Check if no error
-	if (system.status != SYSTEM_ERROR_SD)
-		system.status = SYSTEM_INITIALIZED;
+	if (system_status != SYSTEM_ERROR_SD)
+		system_status = SYSTEM_INITIALIZED;
 
 }
 
@@ -77,7 +79,7 @@ void correction_task()
 {
 	ErrorStatus sensor_correct = ERROR;
 
-	while (system.status == SYSTEM_UNINITIALIZED);
+	while (system_status == SYSTEM_UNINITIALIZED);
 
 	while (sensor_correct == ERROR) {
 
@@ -148,9 +150,9 @@ void correction_task()
 void flightControl_task()
 {
 	//Waiting for system finish initialize
-	while (system.status != SYSTEM_INITIALIZED);
+	while (system_status != SYSTEM_INITIALIZED);
 
-	system.status = SYSTEM_FLIGHT_CONTROL;
+	system_status = SYSTEM_FLIGHT_CONTROL;
 
 	while (1) {
 		GPIO_ToggleBits(GPIOC, GPIO_Pin_7);
@@ -229,16 +231,16 @@ void flightControl_task()
 
 			/* Get Attitude Angle */
 			AHRS_Update();
-			system.variable[TRUE_ROLL].value = AngE.Roll;
-			system.variable[TRUE_PITCH].value = AngE.Pitch;
-			system.variable[TRUE_YAW].value = AngE.Yaw;
+			set_global_data_float(TRUE_ROLL, AngE.Roll);
+			set_global_data_float(TRUE_PITCH, AngE.Pitch);
+			set_global_data_float(TRUE_YAW, AngE.Yaw);
 
 			/*Get RC Control*/
 			Update_RC_Control(&Exp_Roll, &Exp_Pitch, &Exp_Yaw, &Exp_Thr, &safety);
-			system.variable[RC_EXP_THR].value  = Exp_Thr;
-			system.variable[RC_EXP_ROLL].value = Exp_Roll;
-			system.variable[RC_EXP_PITCH].value = Exp_Pitch;
-			system.variable[RC_EXP_YAW].value = Exp_Yaw;
+			set_global_data_float(RC_EXP_THR, Exp_Thr);
+			set_global_data_float(RC_EXP_ROLL, Exp_Roll);
+			set_global_data_float(RC_EXP_PITCH, Exp_Pitch);
+			set_global_data_float(RC_EXP_YAW, Exp_Yaw);
 			/* Get ZeroErr */
 			PID_Pitch.ZeroErr = (float)((s16)Exp_Pitch);
 			PID_Roll.ZeroErr  = (float)((s16)Exp_Roll);
@@ -251,9 +253,9 @@ void flightControl_task()
 			Yaw   = (s16)(PID_Yaw.Kd * Gyr.TrueZ) + 3 * (s16)Exp_Yaw;
 			Thr   = (s16)Exp_Thr;
 
-			system.variable[PID_ROLL].value = Roll;
-			system.variable[PID_PITCH].value = Pitch;
-			system.variable[PID_YAW].value = Yaw;
+			set_global_data_float(PID_ROLL, Roll);
+			set_global_data_float(PID_PITCH, Pitch);
+			set_global_data_float(PID_YAW, Yaw);
 
 
 			/* Motor Ctrl */
@@ -262,10 +264,10 @@ void flightControl_task()
 			Final_M3 = Thr - Pitch + Roll - Yaw;
 			Final_M4 = Thr - Pitch - Roll + Yaw;
 
-			system.variable[MOTOR1].value = Final_M1;
-			system.variable[MOTOR2].value = Final_M2;
-			system.variable[MOTOR3].value = Final_M3;
-			system.variable[MOTOR4].value = Final_M4;
+			set_global_data_float(MOTOR1, Final_M1);
+			set_global_data_float(MOTOR2, Final_M2);
+			set_global_data_float(MOTOR3, Final_M3);
+			set_global_data_float(MOTOR4, Final_M4);
 
 			Bound(Final_M1, PWM_MOTOR_MIN, PWM_MOTOR_MAX);
 			Bound(Final_M2, PWM_MOTOR_MIN, PWM_MOTOR_MAX);
@@ -274,10 +276,10 @@ void flightControl_task()
 
 
 			if (safety == ENGINE_OFF) {
-				system.variable[MOTOR1].value = PWM_MOTOR_MIN;
-				system.variable[MOTOR2].value = PWM_MOTOR_MIN;
-				system.variable[MOTOR3].value = PWM_MOTOR_MIN;
-				system.variable[MOTOR4].value = PWM_MOTOR_MIN;
+				set_global_data_float(MOTOR1, PWM_MOTOR_MIN);
+				set_global_data_float(MOTOR2, PWM_MOTOR_MIN);
+				set_global_data_float(MOTOR3, PWM_MOTOR_MIN);
+				set_global_data_float(MOTOR4, PWM_MOTOR_MIN);
 				Motor_Control(PWM_MOTOR_MIN, PWM_MOTOR_MIN, PWM_MOTOR_MIN, PWM_MOTOR_MIN);
 
 			} else {
@@ -295,14 +297,14 @@ void flightControl_task()
 void check_task()
 {
 	//Waiting for system finish initialize
-	while (system.status != SYSTEM_INITIALIZED);
+	while (system_status != SYSTEM_INITIALIZED);
 
 	while (remote_signal_check() == NO_SIGNAL);
 
 	SetLED(LED_B, DISABLE);
 	vTaskResume(correction_task_handle);
 
-	while (system.status != SYSTEM_FLIGHT_CONTROL);
+	while (system_status != SYSTEM_FLIGHT_CONTROL);
 
 	vTaskDelay(2000);
 	SetLED(LED_R, ENABLE);
@@ -314,15 +316,15 @@ void check_task()
 
 void error_handler_task()
 {
-	while (system.status != SYSTEM_ERROR_SD || system.status == SYSTEM_UNINITIALIZED) {
-		if (system.status == SYSTEM_INITIALIZED)
+	while (system_status != SYSTEM_ERROR_SD || system_status == SYSTEM_UNINITIALIZED) {
+		if (system_status == SYSTEM_INITIALIZED)
 			vTaskDelete(NULL);
 	}
 
 	/* Clear the screen */
 	serial.printf("\x1b[H\x1b[2J");
 
-	if (SD_status != SD_OK) {
+	if (sd_status != SD_OK) {
 		serial.printf("[System status]SD Initialized failed!\n\r");
 		serial.printf("Please Insert the SD card correctly then reboot the QuadCopter!");
 	}
@@ -330,51 +332,91 @@ void error_handler_task()
 	while (1);
 }
 
+#define BOOT_TIME_TIMER 0
+static uint32_t counter = 0;
+void boot_time_timer()
+{
+	counter++;
+	set_global_data_int(BOOT_TIME, counter);
+}
+
 int main(void)
 {
 	NVIC_PriorityGroupConfig(NVIC_PriorityGroup_4);
+
+	init_global_data();
 	system_init();
 
 	vSemaphoreCreateBinary(serial_tx_wait_sem);
 	serial_rx_queue = xQueueCreate(1, sizeof(serial_msg));
 
+	/* Timer */
+	xTimers[BOOT_TIME_TIMER] = xTimerCreate(
+		(signed portCHAR *) "Boot time",
+		configTICK_RATE_HZ,
+		pdTRUE,
+		BOOT_TIME_TIMER,
+		boot_time_timer);
+
 	/* IMU Initialization, Attitude Correction Flight Control */
 	xTaskCreate(check_task,
-		    (signed portCHAR *) "Initial checking",
-		    512, NULL,
-		    tskIDLE_PRIORITY + 5, NULL);
+		(signed portCHAR *) "Initial checking",
+		512, NULL,
+		tskIDLE_PRIORITY + 5, NULL);
 	xTaskCreate(correction_task,
-		    (signed portCHAR *) "System correction",
-		    4096, NULL,
-		    tskIDLE_PRIORITY + 9, &correction_task_handle);
+		(signed portCHAR *) "System correction",
+		4096, NULL,
+		tskIDLE_PRIORITY + 9, &correction_task_handle);
 
 	xTaskCreate(flightControl_task,
-		    (signed portCHAR *) "Flight control",
-		    4096, NULL,
-		    tskIDLE_PRIORITY + 9, &FlightControl_Handle);
+		(signed portCHAR *) "Flight control",
+		4096, NULL,
+		tskIDLE_PRIORITY + 9, &FlightControl_Handle);
 
 	/* QuadCopter Developing Shell, Ground Station Software */
+#if configDEVELOP_SHELL
 	xTaskCreate(shell_task,
-		    (signed portCHAR *) "Shell",
-		    2048, NULL,
-		    tskIDLE_PRIORITY + 7, NULL);
+		(signed portCHAR *) "Shell",
+		2048, NULL,
+		tskIDLE_PRIORITY + 8, NULL);
+#endif
+
+#if configGROUND_STATION
+	xTaskCreate(ground_station_send_task,
+		(signed portCHAR *) "Ground station send task",
+		2048, NULL,
+		tskIDLE_PRIORITY + 7, NULL);
+
+	xTaskCreate(ground_station_receive_task,
+		(signed portCHAR *) "Ground station receive task",
+		2048, NULL,
+		tskIDLE_PRIORITY + 8, NULL);
+#endif
+
+#if configSTATUS_GUI
+	xTaskCreate(nrf_sending_task,
+		(signed portCHAR *) "NRF Sending",
+		1024, NULL,
+		tskIDLE_PRIORITY + 5, NULL);
+#endif
 
 	/* Shell command handling task */
 	xTaskCreate(watch_task,
-		    (signed portCHAR *) "Watch",
-		    1024, NULL,
-		    tskIDLE_PRIORITY + 7, &watch_task_handle);
+		(signed portCHAR *) "Watch",
+		1024, NULL,
+		tskIDLE_PRIORITY + 7, &watch_task_handle);
 
 	/* System error handler*/
 	xTaskCreate(error_handler_task,
-		    (signed portCHAR *) "Error handler",
-		    512, NULL,
-		    tskIDLE_PRIORITY + 7, NULL);
+		(signed portCHAR *) "Error handler",
+		512, NULL,
+		tskIDLE_PRIORITY + 7, NULL);
 
 	vTaskSuspend(FlightControl_Handle);
 	vTaskSuspend(correction_task_handle);
 	vTaskSuspend(watch_task_handle);
 
+	xTimerStart(xTimers[BOOT_TIME_TIMER], 0);
 	vTaskStartScheduler();
 
 	return 0;

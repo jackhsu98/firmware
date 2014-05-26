@@ -7,7 +7,14 @@
 #define USE_WFLY_CONTROLLER		0
 
 /* Status report functions */
-#define configSTATUS_SHELL		1
+#define configSTATUS_GUI		0
+
+/* USART channel Usage */
+#define configDEVELOP_SHELL		0
+#define configGROUND_STATION		1
+
+/* Ground Station */
+#define configGCS_HIGHSPEED		1
 
 /* Set baudrate */
 #define Serial_Baudrate 57600
@@ -18,10 +25,14 @@
 #include "task.h"
 #include "queue.h"
 #include "semphr.h"
+#include "timers.h"
 
 //FatFS
 #include "diskio.h"
 #include "ff.h"
+
+//Mavlink
+#include "mavlink.h"
 
 //Algorithm
 #include "PID.h"
@@ -37,6 +48,7 @@
 #include "remote_control.h"
 #include "IMU_correct.h"
 #include "communication.h"
+#include "mission.h"
 
 //Driver
 #include "stm32f4_system.h"

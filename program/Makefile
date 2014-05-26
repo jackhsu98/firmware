@@ -25,6 +25,7 @@ CFLAGS+= \
         -D ARM_MATH_CM4
         # __FPU_USED=1
         #__CC_ARM
+	#NOASSERT #Release version then turn on
 
 LDFLAGS+=-lm -lc -lgcc
 
@@ -38,6 +39,8 @@ ST=./lib/STM32F4xx_StdPeriph_Driver
 
 FREERTOS=./lib/FreeRTOS
 FATFS=./lib/fatfs
+
+MAVLINK=./lib/mavlink
 
 CONFIG=./config
 COMMON=./common
@@ -71,6 +74,9 @@ SRC+=./lib/CMSIS/system_stm32f4xx.c \
         $(ST)/src/stm32f4xx_i2c.c \
         $(ST)/src/stm32f4xx_sdio.c
 
+CFLAGS+=-I$(MAVLINK)
+CFLAGS+=-I$(MAVLINK)/common
+
 CFLAGS+=-I$(CONFIG)
 
 CFLAGS+=-I$(COMMON)
@@ -102,7 +108,8 @@ SRC+=$(SYSTEM)/AHRS.c \
 	$(SYSTEM)/interrupt.c \
 	$(SYSTEM)/main.c \
 	$(SYSTEM)/remote_control.c\
-	$(SYSTEM)/communication.c
+	$(SYSTEM)/communication.c \
+	$(SYSTEM)/mission.c
 
 CFLAGS+=-I$(SHELL_)
 SRC+=$(SHELL_)/linenoise.c \
