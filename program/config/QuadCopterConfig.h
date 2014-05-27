@@ -10,8 +10,8 @@
 #define configSTATUS_GUI		0
 
 /* USART channel Usage */
-#define configDEVELOP_SHELL		0
-#define configGROUND_STATION		1
+#define configDEVELOP_SHELL		1
+#define configGROUND_STATION		0
 
 /* Ground Station */
 #define configGCS_HIGHSPEED		1
